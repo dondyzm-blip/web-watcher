@@ -1,0 +1,5 @@
+-keep class com.webwatcher.data.model.** { *; }
+-keep class com.webwatcher.data.db.** { *; }
+-keepattributes *Annotation*
+-dontwarn okhttp3.**
+-dontwarn org.jsoup.**

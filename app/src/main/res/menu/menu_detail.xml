@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_check_now"
+        android:title="今すぐ確認"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/action_edit"
+        android:title="設定を編集"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_open_browser"
+        android:title="ブラウザで開く"
+        app:showAsAction="never" />
+</menu>
