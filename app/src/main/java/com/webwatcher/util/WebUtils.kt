@@ -3,10 +3,6 @@ package com.webwatcher.util
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
@@ -15,14 +11,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
 
 private const val TAG = "WebUtils"
 
-// ─── HTTP Fetcher ─────────────────────────────────────────────────────────────
-
 object WebFetcher {
-
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -51,18 +43,10 @@ object WebFetcher {
     }
 }
 
-// ─── Hash Utility ─────────────────────────────────────────────────────────────
-
 object HashUtil {
-
-    /**
-     * HTMLから意味のあるテキストのみ抽出してハッシュ化
-     * （スクリプト・スタイル・タイムスタンプ等の動的部分は除外）
-     */
     fun computeContentHash(html: String, cssSelector: String? = null): String {
         return try {
             val doc = Jsoup.parse(html)
-            // スクリプト・スタイル・メタ除去
             doc.select("script, style, meta, noscript, iframe").remove()
             val content = if (cssSelector != null) {
                 doc.select(cssSelector).text()
@@ -82,37 +66,29 @@ object HashUtil {
     }
 }
 
-// ─── HTML Diff Engine ─────────────────────────────────────────────────────────
-
 object HtmlDiffEngine {
 
-    /**
-     * 旧HTML・新HTMLを比較し、変更箇所をハイライトしたHTMLを生成する
-     */
     fun generateDiffHtml(oldHtml: String, newHtml: String, cssSelector: String? = null): String {
         val oldDoc = Jsoup.parse(oldHtml)
         val newDoc = Jsoup.parse(newHtml)
 
-        // スクリプト・スタイル除去
         listOf(oldDoc, newDoc).forEach { doc ->
             doc.select("script, noscript, iframe").remove()
         }
 
         val oldTexts = extractTextNodes(oldDoc, cssSelector)
         val newTexts = extractTextNodes(newDoc, cssSelector)
-
-        // 差分計算（Myers diff algorithm 簡易版）
         val diffs = computeDiff(oldTexts, newTexts)
 
-        return buildDiffHtml(newDoc, diffs, oldTexts, newTexts)
+        return buildDiffHtml(newDoc, diffs)
     }
 
     private fun extractTextNodes(doc: Document, cssSelector: String?): List<String> {
         val root = if (cssSelector != null) doc.select(cssSelector).firstOrNull() ?: doc.body()
                    else doc.body() ?: doc
         return root?.select("*")
-            ?.filter { it.childrenSize() == 0 && it.text().isNotBlank() }
-            ?.map { it.text().trim() }
+            ?.filter { el -> el.childrenSize() == 0 && el.text().isNotBlank() }
+            ?.map { el -> el.text().trim() }
             ?: emptyList()
     }
 
@@ -120,7 +96,6 @@ object HtmlDiffEngine {
     enum class DiffType { ADDED, REMOVED, UNCHANGED }
 
     private fun computeDiff(old: List<String>, new: List<String>): List<DiffItem> {
-        // LCS-based diff
         val m = old.size
         val n = new.size
         val lcs = Array(m + 1) { IntArray(n + 1) }
@@ -146,17 +121,11 @@ object HtmlDiffEngine {
         return result
     }
 
-    private fun buildDiffHtml(
-        baseDoc: Document,
-        diffs: List<DiffItem>,
-        oldTexts: List<String>,
-        newTexts: List<String>
-    ): String {
+    private fun buildDiffHtml(baseDoc: Document, diffs: List<DiffItem>): String {
         val addedSet = diffs.filter { it.type == DiffType.ADDED }.map { it.text }.toSet()
         val removedSet = diffs.filter { it.type == DiffType.REMOVED }.map { it.text }.toSet()
 
-        // ページ内の要素をハイライト
-        baseDoc.select("*").filter { it.childrenSize() == 0 && it.text().isNotBlank() }.forEach { el ->
+        baseDoc.select("*").filter { el -> el.childrenSize() == 0 && el.text().isNotBlank() }.forEach { el ->
             val text = el.text().trim()
             when {
                 addedSet.contains(text) -> {
@@ -164,14 +133,12 @@ object HtmlDiffEngine {
                     el.attr("data-diff", "added")
                 }
                 removedSet.contains(text) -> {
-                    // 削除要素は打ち消し線で表示
                     el.attr("style", "${el.attr("style")} background-color:#fadadd !important; outline: 2px solid #e74c3c !important; text-decoration:line-through; opacity:0.7;")
                     el.attr("data-diff", "removed")
                 }
             }
         }
 
-        // 削除されたテキストを追加表示
         val removedItems = diffs.filter { it.type == DiffType.REMOVED }
         if (removedItems.isNotEmpty()) {
             val removedDiv = baseDoc.createElement("div").apply {
@@ -183,18 +150,12 @@ object HtmlDiffEngine {
             baseDoc.body()?.appendChild(removedDiv)
         }
 
-        // 凡例を追加
         val legend = baseDoc.createElement("div").apply {
             attr("style", "position:fixed;top:8px;right:8px;background:rgba(255,255,255,0.95);border:1px solid #ccc;border-radius:8px;padding:8px 12px;font-size:12px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,0.2);")
-            html("""
-                <b>📊 変更ハイライト</b><br>
-                <span style='background:#c8f7c5;padding:2px 6px;border-radius:3px;'>追加</span>
-                <span style='background:#fadadd;padding:2px 6px;border-radius:3px;margin-left:4px;text-decoration:line-through;'>削除</span>
-            """.trimIndent())
+            html("<b>📊 変更ハイライト</b><br><span style='background:#c8f7c5;padding:2px 6px;border-radius:3px;'>追加</span><span style='background:#fadadd;padding:2px 6px;border-radius:3px;margin-left:4px;text-decoration:line-through;'>削除</span>")
         }
         baseDoc.body()?.appendChild(legend)
 
-        // ビューポート設定
         if (baseDoc.head().select("meta[name=viewport]").isEmpty) {
             baseDoc.head().append("""<meta name="viewport" content="width=device-width, initial-scale=1">""")
         }
@@ -203,10 +164,7 @@ object HtmlDiffEngine {
     }
 }
 
-// ─── File Storage ─────────────────────────────────────────────────────────────
-
 object SnapshotStorage {
-
     fun saveHtml(context: Context, targetId: Long, html: String, suffix: String = ""): String {
         val dir = File(context.filesDir, "snapshots/$targetId").also { it.mkdirs() }
         val name = "${System.currentTimeMillis()}$suffix.html"

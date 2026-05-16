@@ -24,7 +24,7 @@ class WatchTargetAdapter(
         private val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.JAPAN)
     }
 
-    fun getItem(position: Int): WatchTarget = super.getItem(position)
+    override fun getItem(position: Int): WatchTarget = super.getItem(position)
 
     inner class ViewHolder(private val binding: ItemWatchTargetBinding) :
         RecyclerView.ViewHolder(binding.root) {
@@ -45,7 +45,6 @@ class WatchTargetAdapter(
                 btnCheckNow.setOnClickListener { onCheckNow(target) }
                 root.setOnClickListener { onItemClick(target) }
 
-                // 変更インジケーター
                 val hasRecentChange = target.lastChangedAt != null &&
                     (target.lastCheckedAt ?: 0L) - (target.lastChangedAt ?: 0L) < 60_000L * 60
                 indicatorChanged.visibility =
