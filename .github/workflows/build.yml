@@ -18,16 +18,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission to gradlew
-        run: chmod +x gradlew
+      - name: Generate gradlew
+        run: gradle wrapper --gradle-version 8.2
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
