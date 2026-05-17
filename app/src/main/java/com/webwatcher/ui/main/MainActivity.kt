@@ -17,7 +17,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.webwatcher.R
-import com.webwatcher.data.model.WatchTarget
 import com.webwatcher.databinding.ActivityMainBinding
 import com.webwatcher.service.WatchScheduler
 import com.webwatcher.ui.add.AddWatchActivity
@@ -31,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     private val notifPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* granted or not */ }
+    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,11 +84,10 @@ class MainActivity : AppCompatActivity() {
             adapter = this@MainActivity.adapter
         }
 
-        // スワイプ削除
         val swipeCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                val target = currentList[viewHolder.adapterPosition]
+                val target = adapter.currentList[viewHolder.adapterPosition]
                 MaterialAlertDialogBuilder(this@MainActivity)
                     .setTitle("削除の確認")
                     .setMessage("「${target.title}」の監視を削除しますか？\n履歴も削除されます。")

@@ -156,7 +156,7 @@ object HtmlDiffEngine {
         }
         baseDoc.body()?.appendChild(legend)
 
-        if (baseDoc.head().select("meta[name=viewport]").isEmpty) {
+        if (baseDoc.head().select("meta[name=viewport]").isEmpty()) {
             baseDoc.head().append("""<meta name="viewport" content="width=device-width, initial-scale=1">""")
         }
 
