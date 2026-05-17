@@ -42,7 +42,6 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
                 android:hint="https://example.com"
-                android:hintTextColor="#AAAAAA"
                 android:textColor="#222222"
                 android:textSize="15sp"
                 android:inputType="textUri"
@@ -88,7 +87,6 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
                 android:hint="サイト名（自動入力されます）"
-                android:hintTextColor="#AAAAAA"
                 android:textColor="#222222"
                 android:textSize="15sp"
                 android:inputType="text"/>
@@ -129,7 +127,6 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
                 android:hint="例: #main-content"
-                android:hintTextColor="#AAAAAA"
                 android:textColor="#222222"
                 android:textSize="15sp"
                 android:fontFamily="monospace"
