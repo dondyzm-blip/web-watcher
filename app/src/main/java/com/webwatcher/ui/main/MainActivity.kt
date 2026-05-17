@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         val swipeCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                val target = adapter.getItem(viewHolder.adapterPosition)
+                val target = currentList[viewHolder.adapterPosition]
                 MaterialAlertDialogBuilder(this@MainActivity)
                     .setTitle("削除の確認")
                     .setMessage("「${target.title}」の監視を削除しますか？\n履歴も削除されます。")
