@@ -11,14 +11,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.webwatcher.R
 import com.webwatcher.data.model.AccessHistory
 import com.webwatcher.databinding.ActivityDetailBinding
 import com.webwatcher.service.WatchScheduler
 import com.webwatcher.ui.add.AddWatchActivity
-import com.webwatcher.util.SnapshotStorage
 import java.io.File
 
 class DetailActivity : AppCompatActivity() {
@@ -57,6 +55,13 @@ class DetailActivity : AppCompatActivity() {
                 builtInZoomControls = true
                 displayZoomControls = false
                 cacheMode = WebSettings.LOAD_NO_CACHE
+                // ローカルファイルアクセスを許可
+                allowFileAccess = true
+                allowContentAccess = true
+                @Suppress("DEPRECATION")
+                allowFileAccessFromFileURLs = true
+                @Suppress("DEPRECATION")
+                allowUniversalAccessFromFileURLs = true
             }
             webViewClient = WebViewClient()
         }
@@ -98,7 +103,7 @@ class DetailActivity : AppCompatActivity() {
             else -> null
         }
 
-        if (path != null) {
+        if (path != null && File(path).exists()) {
             binding.webViewCard.visibility = View.VISIBLE
             binding.webView.loadUrl("file://$path")
             binding.tvViewingLabel.text = if (showDiff && history.diffSnapshotPath != null)
@@ -107,7 +112,6 @@ class DetailActivity : AppCompatActivity() {
             binding.webViewCard.visibility = View.GONE
         }
 
-        // 差分/通常の切り替えボタン
         binding.btnToggleDiff.visibility =
             if (history.diffSnapshotPath != null) View.VISIBLE else View.GONE
         binding.btnToggleDiff.text = if (showDiff) "通常表示" else "差分表示"

@@ -5,13 +5,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#FFFFFF">
+    android:background="?android:attr/windowBackground">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="#1976D2"
+        android:background="@color/primary"
         app:title="URLを追加"
         app:titleTextColor="#FFFFFF" />
 
@@ -25,14 +25,13 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- URL入力 -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="URL"
                 android:textSize="14sp"
-                android:textColor="#333333"
                 android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
                 android:layout_marginBottom="4dp"/>
 
             <EditText
@@ -42,12 +41,11 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
                 android:hint="https://example.com"
-                android:textColor="#222222"
+                android:textColor="?android:attr/textColorPrimary"
                 android:textSize="15sp"
                 android:inputType="textUri"
                 android:imeOptions="actionNext"/>
 
-            <!-- URL取得中インジケーター -->
             <LinearLayout
                 android:id="@+id/layoutFetching"
                 android:layout_width="match_parent"
@@ -66,17 +64,16 @@
                     android:layout_marginStart="6dp"
                     android:text="サイト情報を取得中..."
                     android:textSize="12sp"
-                    android:textColor="#888888"/>
+                    android:textColor="?android:attr/textColorSecondary"/>
             </LinearLayout>
 
-            <!-- サイト名 -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="サイト名"
                 android:textSize="14sp"
-                android:textColor="#333333"
                 android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="4dp"/>
 
@@ -87,36 +84,37 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
                 android:hint="サイト名（自動入力されます）"
-                android:textColor="#222222"
+                android:textColor="?android:attr/textColorPrimary"
                 android:textSize="15sp"
                 android:inputType="text"/>
 
-            <!-- 監視間隔 -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="監視間隔"
                 android:textSize="14sp"
-                android:textColor="#333333"
                 android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="4dp"/>
 
+            <!-- Spinnerをテキスト表示で見やすく -->
             <Spinner
                 android:id="@+id/spinnerInterval"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:background="@drawable/bg_input"
-                android:paddingHorizontal="12dp"/>
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:spinnerMode="dropdown"/>
 
-            <!-- CSSセレクター -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="CSSセレクター（省略可）"
                 android:textSize="14sp"
-                android:textColor="#333333"
                 android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="4dp"/>
 
@@ -127,7 +125,7 @@
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
                 android:hint="例: #main-content"
-                android:textColor="#222222"
+                android:textColor="?android:attr/textColorPrimary"
                 android:textSize="15sp"
                 android:fontFamily="monospace"
                 android:inputType="text"/>
@@ -137,7 +135,7 @@
                 android:layout_height="wrap_content"
                 android:text="特定の箇所だけ監視したい場合に指定"
                 android:textSize="12sp"
-                android:textColor="#888888"
+                android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginTop="4dp"/>
 
             <Button
