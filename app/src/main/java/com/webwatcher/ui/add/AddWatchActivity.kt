@@ -8,6 +8,7 @@ import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.webwatcher.data.model.IntervalOption
+import com.webwatcher.data.model.WaitOption
 import com.webwatcher.data.model.WatchTarget
 import com.webwatcher.data.repository.WatchRepository
 import com.webwatcher.databinding.ActivityAddWatchBinding
@@ -41,7 +42,7 @@ class AddWatchActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        setupIntervalSpinner()
+        setupSpinners()
         setupUrlAutoFetch()
 
         val editId = intent.getLongExtra(EXTRA_EDIT_ID, -1L)
@@ -54,6 +55,8 @@ class AddWatchActivity : AppCompatActivity() {
                     binding.etSelector.setText(target.cssSelector ?: "")
                     val idx = IntervalOption.entries.indexOfFirst { it.minutes == target.intervalMinutes }
                     if (idx >= 0) binding.spinnerInterval.setSelection(idx)
+                    val waitIdx = WaitOption.entries.indexOfFirst { it.seconds == target.waitSeconds }
+                    if (waitIdx >= 0) binding.spinnerWait.setSelection(waitIdx)
                     supportActionBar?.title = "監視設定を編集"
                 }
             }
@@ -62,13 +65,24 @@ class AddWatchActivity : AppCompatActivity() {
         binding.btnSave.setOnClickListener { save() }
     }
 
-    private fun setupIntervalSpinner() {
-        val labels = IntervalOption.entries.map { it.label }
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels).also {
+    private fun setupSpinners() {
+        // 監視間隔
+        ArrayAdapter(this, android.R.layout.simple_spinner_item,
+            IntervalOption.entries.map { it.label }
+        ).also {
             it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.spinnerInterval.adapter = it
         }
-        binding.spinnerInterval.adapter = adapter
         binding.spinnerInterval.setSelection(2)
+
+        // 待機時間
+        ArrayAdapter(this, android.R.layout.simple_spinner_item,
+            WaitOption.entries.map { it.label }
+        ).also {
+            it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.spinnerWait.adapter = it
+        }
+        binding.spinnerWait.setSelection(2) // デフォルト5秒
     }
 
     private fun setupUrlAutoFetch() {
@@ -78,7 +92,6 @@ class AddWatchActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {
                 val url = s.toString().trim()
                 if (url.startsWith("http://") || url.startsWith("https://")) {
-                    // 入力が止まって1秒後に取得（連続入力中は取得しない）
                     fetchTitleJob?.cancel()
                     fetchTitleJob = lifecycleScope.launch {
                         delay(1000)
@@ -90,20 +103,16 @@ class AddWatchActivity : AppCompatActivity() {
     }
 
     private suspend fun fetchPageTitle(url: String) {
-        // タイトルがすでに手入力されている場合はスキップ
         if (binding.etTitle.text.toString().isNotBlank() && editingTarget == null) return
-
         binding.layoutFetching.visibility = View.VISIBLE
         try {
             val title = withContext(Dispatchers.IO) {
-                val request = Request.Builder()
-                    .url(url)
+                val request = Request.Builder().url(url)
                     .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
                     .build()
                 val response = httpClient.newCall(request).execute()
                 val html = response.body?.string() ?: return@withContext null
                 val doc = Jsoup.parse(html)
-                // OGPタイトル優先、なければtitleタグ
                 doc.select("meta[property=og:title]").attr("content").ifBlank {
                     doc.title().ifBlank { null }
                 }
@@ -112,7 +121,7 @@ class AddWatchActivity : AppCompatActivity() {
                 binding.etTitle.setText(title)
             }
         } catch (e: Exception) {
-            // 取得失敗は無視（手入力してもらう）
+            // 無視
         } finally {
             binding.layoutFetching.visibility = View.GONE
         }
@@ -133,22 +142,25 @@ class AddWatchActivity : AppCompatActivity() {
         }
 
         val interval = IntervalOption.entries[binding.spinnerInterval.selectedItemPosition].minutes
+        val wait = WaitOption.entries[binding.spinnerWait.selectedItemPosition].seconds
 
         lifecycleScope.launch {
             val existing = editingTarget
             if (existing != null) {
-                val updated = existing.copy(
+                repo.updateTarget(existing.copy(
                     title = title, url = url,
-                    intervalMinutes = interval, cssSelector = selector
-                )
-                repo.updateTarget(updated)
-                if (updated.isActive) WatchScheduler.schedule(this@AddWatchActivity, updated.id, interval)
+                    intervalMinutes = interval,
+                    cssSelector = selector,
+                    waitSeconds = wait
+                ))
+                if (existing.isActive) WatchScheduler.schedule(this@AddWatchActivity, existing.id, interval)
             } else {
-                val target = WatchTarget(
+                val id = repo.addTarget(WatchTarget(
                     title = title, url = url,
-                    intervalMinutes = interval, cssSelector = selector
-                )
-                val id = repo.addTarget(target)
+                    intervalMinutes = interval,
+                    cssSelector = selector,
+                    waitSeconds = wait
+                ))
                 WatchScheduler.schedule(this@AddWatchActivity, id, interval)
                 WatchScheduler.runNow(this@AddWatchActivity, id)
             }

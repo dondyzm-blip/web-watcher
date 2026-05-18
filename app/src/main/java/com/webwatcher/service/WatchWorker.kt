@@ -1,7 +1,12 @@
 package com.webwatcher.service
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.work.*
 import com.webwatcher.data.model.AccessHistory
 import com.webwatcher.data.repository.WatchRepository
@@ -9,10 +14,12 @@ import com.webwatcher.util.HashUtil
 import com.webwatcher.util.HtmlDiffEngine
 import com.webwatcher.util.NotificationHelper
 import com.webwatcher.util.SnapshotStorage
-import com.webwatcher.util.WebFetcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
 
 private const val TAG = "WatchWorker"
 const val KEY_TARGET_ID = "target_id"
@@ -24,90 +31,140 @@ class WatchWorker(
 
     private val repo = WatchRepository(context)
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+    override suspend fun doWork(): Result {
         val targetId = inputData.getLong(KEY_TARGET_ID, -1L)
-        if (targetId < 0) return@withContext Result.failure()
+        if (targetId < 0) return Result.failure()
 
-        val target = repo.getTargetById(targetId) ?: return@withContext Result.failure()
-        if (!target.isActive) return@withContext Result.success()
+        val target = repo.getTargetById(targetId) ?: return Result.failure()
+        if (!target.isActive) return Result.success()
 
         Log.d(TAG, "Checking: ${target.url}")
 
-        val fetchResult = WebFetcher.fetch(target.url)
-        val now = System.currentTimeMillis()
-
-        if (fetchResult.error != null || fetchResult.statusCode == 0) {
-            // ネットワークエラー記録
-            repo.insertHistory(AccessHistory(
-                targetId = targetId,
-                hasChanged = false,
-                contentHash = "",
-                snapshotPath = null,
-                screenshotPath = null,
-                diffSnapshotPath = null,
-                statusCode = fetchResult.statusCode,
-                errorMessage = fetchResult.error
-            ))
-            return@withContext Result.retry()
-        }
-
-        val newHash = HashUtil.computeContentHash(fetchResult.html, target.cssSelector)
-        val hasChanged = target.lastContentHash != null && target.lastContentHash != newHash
-
-        // HTMLスナップショット保存
-        val snapshotPath = SnapshotStorage.saveHtml(context, targetId, fetchResult.html)
-
-        // 差分HTML生成（前回のスナップショットと比較）
-        var diffPath: String? = null
-        if (hasChanged) {
-            val prevHistory = repo.getLatestTwoHistory(targetId).getOrNull(1)
-            val prevHtml = prevHistory?.snapshotPath?.let { SnapshotStorage.readHtml(it) }
-            if (prevHtml != null) {
-                val diffHtml = HtmlDiffEngine.generateDiffHtml(prevHtml, fetchResult.html, target.cssSelector)
-                diffPath = SnapshotStorage.saveHtml(context, targetId, diffHtml, "_diff")
+        return try {
+            // WebViewでHTMLを取得（メインスレッドで実行）
+            val html = withContext(Dispatchers.Main) {
+                fetchHtmlWithWebView(target.url, target.waitSeconds)
             }
+
+            if (html == null) {
+                repo.insertHistory(AccessHistory(
+                    targetId = targetId,
+                    hasChanged = false,
+                    contentHash = "",
+                    snapshotPath = null,
+                    screenshotPath = null,
+                    diffSnapshotPath = null,
+                    statusCode = 0,
+                    errorMessage = "ページの読み込みに失敗しました"
+                ))
+                return Result.retry()
+            }
+
+            val now = System.currentTimeMillis()
+            val newHash = HashUtil.computeContentHash(html, target.cssSelector)
+            val hasChanged = target.lastContentHash != null && target.lastContentHash != newHash
+
+            val snapshotPath = withContext(Dispatchers.IO) {
+                SnapshotStorage.saveHtml(context, targetId, html)
+            }
+
+            var diffPath: String? = null
+            if (hasChanged) {
+                val prevHistory = repo.getLatestTwoHistory(targetId).getOrNull(1)
+                val prevHtml = prevHistory?.snapshotPath?.let {
+                    withContext(Dispatchers.IO) { SnapshotStorage.readHtml(it) }
+                }
+                if (prevHtml != null) {
+                    val diffHtml = HtmlDiffEngine.generateDiffHtml(prevHtml, html, target.cssSelector)
+                    diffPath = withContext(Dispatchers.IO) {
+                        SnapshotStorage.saveHtml(context, targetId, diffHtml, "_diff")
+                    }
+                }
+            }
+
+            val historyId = repo.insertHistory(AccessHistory(
+                targetId = targetId,
+                hasChanged = hasChanged,
+                contentHash = newHash,
+                snapshotPath = snapshotPath,
+                screenshotPath = null,
+                diffSnapshotPath = diffPath,
+                statusCode = 200
+            ))
+
+            repo.updateCheckInfo(targetId, now, newHash)
+            if (hasChanged) {
+                repo.updateChangedAt(targetId, now)
+                NotificationHelper.showChangeNotification(
+                    context, targetId, target.title, historyId, targetId.toInt()
+                )
+            }
+
+            withContext(Dispatchers.IO) {
+                SnapshotStorage.deleteOldFiles(context, targetId)
+            }
+
+            Result.success()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking ${target.url}", e)
+            Result.retry()
         }
-
-        // 履歴保存
-        val historyId = repo.insertHistory(AccessHistory(
-            targetId = targetId,
-            hasChanged = hasChanged,
-            contentHash = newHash,
-            snapshotPath = snapshotPath,
-            screenshotPath = null,
-            diffSnapshotPath = diffPath,
-            statusCode = fetchResult.statusCode
-        ))
-
-        // DB更新
-        repo.updateCheckInfo(targetId, now, newHash)
-        if (hasChanged) {
-            repo.updateChangedAt(targetId, now)
-
-            // 通知発火
-            NotificationHelper.showChangeNotification(
-                context,
-                targetId,
-                target.title,
-                historyId,
-                targetId.toInt()
-            )
-        }
-
-        // 古いファイル削除
-        SnapshotStorage.deleteOldFiles(context, targetId)
-
-        Result.success()
     }
+
+    private suspend fun fetchHtmlWithWebView(url: String, waitSeconds: Int): String? =
+        suspendCancellableCoroutine { cont ->
+            val handler = Handler(Looper.getMainLooper())
+            val webView = WebView(context)
+            var resumed = false
+
+            fun resumeWith(html: String?) {
+                if (!resumed) {
+                    resumed = true
+                    webView.destroy()
+                    cont.resume(html)
+                }
+            }
+
+            webView.settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0 Safari/537.36"
+            }
+
+            // JSからHTMLを受け取るインターフェース
+            class HtmlReceiver {
+                @JavascriptInterface
+                fun receive(html: String) {
+                    handler.post { resumeWith(html) }
+                }
+            }
+            webView.addJavascriptInterface(HtmlReceiver(), "AndroidBridge")
+
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+                    // 指定秒数待機後にHTMLを取得
+                    handler.postDelayed({
+                        webView.evaluateJavascript(
+                            "AndroidBridge.receive(document.documentElement.outerHTML);"
+                        ) { /* コールバック不要 */ }
+                    }, waitSeconds * 1000L)
+                }
+            }
+
+            // タイムアウト（待機時間 + 30秒）
+            handler.postDelayed({
+                resumeWith(null)
+            }, (waitSeconds + 30) * 1000L)
+
+            webView.loadUrl(url)
+
+            cont.invokeOnCancellation { resumeWith(null) }
+        }
 }
 
-// ─── WorkManager スケジューラ ───────────────────────────────────────────────
-
 object WatchScheduler {
-
     fun schedule(context: Context, targetId: Long, intervalMinutes: Int) {
         val data = workDataOf(KEY_TARGET_ID to targetId)
-
         val request = PeriodicWorkRequestBuilder<WatchWorker>(
             intervalMinutes.toLong(), TimeUnit.MINUTES
         )
@@ -125,12 +182,10 @@ object WatchScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             request
         )
-        Log.d(TAG, "Scheduled target $targetId every $intervalMinutes min")
     }
 
     fun cancel(context: Context, targetId: Long) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(targetId))
-        Log.d(TAG, "Cancelled target $targetId")
     }
 
     fun runNow(context: Context, targetId: Long) {

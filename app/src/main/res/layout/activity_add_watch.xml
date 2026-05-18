@@ -98,7 +98,6 @@
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="4dp"/>
 
-            <!-- Spinnerをテキスト表示で見やすく -->
             <Spinner
                 android:id="@+id/spinnerInterval"
                 android:layout_width="match_parent"
@@ -107,6 +106,33 @@
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:spinnerMode="dropdown"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ページ読み込み待機時間"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+
+            <Spinner
+                android:id="@+id/spinnerWait"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_input"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:spinnerMode="dropdown"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="動的コンテンツが多いページは長めに設定"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginTop="4dp"/>
 
             <TextView
                 android:layout_width="match_parent"
@@ -124,7 +150,7 @@
                 android:layout_height="52dp"
                 android:background="@drawable/bg_input"
                 android:paddingHorizontal="12dp"
-                android:hint="例: #main-content"
+                android:hint="例: #main-content（詳細画面でタップ選択可）"
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="15sp"
                 android:fontFamily="monospace"
@@ -133,7 +159,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="特定の箇所だけ監視したい場合に指定"
+                android:text="詳細画面の「要素選択」ボタンでタップして自動設定できます"
                 android:textSize="12sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginTop="4dp"/>
@@ -150,5 +176,4 @@
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-
 </LinearLayout>

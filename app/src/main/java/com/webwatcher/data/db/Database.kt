@@ -2,14 +2,13 @@ package com.webwatcher.data.db
 
 import androidx.lifecycle.LiveData
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.webwatcher.data.model.AccessHistory
 import com.webwatcher.data.model.WatchTarget
 
-// ─── DAOs ───────────────────────────────────────────────────────────────────
-
 @Dao
 interface WatchTargetDao {
-
     @Query("SELECT * FROM watch_targets ORDER BY createdAt DESC")
     fun getAllLive(): LiveData<List<WatchTarget>>
 
@@ -43,7 +42,6 @@ interface WatchTargetDao {
 
 @Dao
 interface AccessHistoryDao {
-
     @Query("SELECT * FROM access_history WHERE targetId = :targetId ORDER BY accessedAt DESC")
     fun getByTargetLive(targetId: Long): LiveData<List<AccessHistory>>
 
@@ -53,12 +51,7 @@ interface AccessHistoryDao {
     @Query("SELECT * FROM access_history WHERE id = :id")
     suspend fun getById(id: Long): AccessHistory?
 
-    @Query("""
-        SELECT * FROM access_history 
-        WHERE targetId = :targetId 
-        ORDER BY accessedAt DESC 
-        LIMIT 2
-    """)
+    @Query("SELECT * FROM access_history WHERE targetId = :targetId ORDER BY accessedAt DESC LIMIT 2")
     suspend fun getLatestTwo(targetId: Long): List<AccessHistory>
 
     @Insert
@@ -71,11 +64,9 @@ interface AccessHistoryDao {
     suspend fun deleteByTarget(targetId: Long)
 }
 
-// ─── Database ────────────────────────────────────────────────────────────────
-
 @Database(
     entities = [WatchTarget::class, AccessHistory::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -85,13 +76,24 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE watch_targets ADD COLUMN waitSeconds INTEGER NOT NULL DEFAULT 5"
+                )
+            }
+        }
+
         fun getInstance(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "webwatcher.db"
-                ).build().also { INSTANCE = it }
+                )
+                .addMigrations(MIGRATION_1_2)
+                .build()
+                .also { INSTANCE = it }
             }
         }
     }
