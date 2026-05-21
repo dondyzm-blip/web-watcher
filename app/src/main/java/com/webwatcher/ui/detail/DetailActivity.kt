@@ -1,12 +1,18 @@
 package com.webwatcher.ui.detail
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -24,6 +30,7 @@ import com.webwatcher.service.WatchScheduler
 import com.webwatcher.ui.add.AddWatchActivity
 import com.webwatcher.util.SnapshotStorage
 import kotlinx.coroutines.launch
+import java.io.ByteArrayInputStream
 import java.io.File
 
 class DetailActivity : AppCompatActivity() {
@@ -34,6 +41,7 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var historyAdapter: HistoryAdapter
     private var targetId: Long = -1
     private var isSelectMode = false
+    private var currentTargetUrl: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,8 +73,7 @@ class DetailActivity : AppCompatActivity() {
                 builtInZoomControls = true
                 displayZoomControls = false
                 cacheMode = WebSettings.LOAD_NO_CACHE
-                // ネットワークアクセスをブロック（ローカルHTMLのみ表示）
-                blockNetworkLoads = true
+                blockNetworkLoads = false
             }
 
             addJavascriptInterface(object : Any() {
@@ -76,7 +83,45 @@ class DetailActivity : AppCompatActivity() {
                 }
             }, "SelectorBridge")
 
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                // ネットワークエラーを空レスポンスで無視（真っ白を防ぐ）
+                override fun onReceivedError(
+                    view: WebView?, request: WebResourceRequest?, error: WebResourceError?
+                ) {
+                    // メインフレーム以外のエラーは無視
+                    if (request?.isForMainFrame == false) return
+                }
+
+                override fun onReceivedHttpError(
+                    view: WebView?, request: WebResourceRequest?,
+                    errorResponse: WebResourceResponse?
+                ) {
+                    // サブリソースのHTTPエラーは無視
+                    if (request?.isForMainFrame == false) return
+                }
+
+                override fun onReceivedSslError(
+                    view: WebView?, handler: SslErrorHandler?, error: SslError?
+                ) {
+                    handler?.proceed() // SSL証明書エラーを無視
+                }
+
+                // 外部リソース（画像・CSS・JS）のロードエラーを空で返す
+                override fun shouldInterceptRequest(
+                    view: WebView?, request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    val url = request?.url?.toString() ?: return null
+                    // メインHTMLはそのまま
+                    if (request.isForMainFrame) return null
+                    // 外部リソースは空レスポンスを返してエラー表示を防ぐ
+                    return try {
+                        super.shouldInterceptRequest(view, request)
+                    } catch (e: Exception) {
+                        WebResourceResponse("text/plain", "UTF-8",
+                            ByteArrayInputStream(ByteArray(0)))
+                    }
+                }
+            }
         }
     }
 
@@ -105,14 +150,14 @@ class DetailActivity : AppCompatActivity() {
                     var path = [];
                     var cur = el;
                     while (cur && cur.nodeType === 1 && path.length < 3) {
-                        var selector = cur.tagName.toLowerCase();
+                        var sel = cur.tagName.toLowerCase();
                         if (cur.className) {
                             var classes = cur.className.trim().split(/\s+/)
                                 .filter(function(c){ return c && !c.startsWith('_ww_'); })
                                 .slice(0, 2);
-                            if (classes.length > 0) selector += '.' + classes.join('.');
+                            if (classes.length > 0) sel += '.' + classes.join('.');
                         }
-                        path.unshift(selector);
+                        path.unshift(sel);
                         cur = cur.parentElement;
                     }
                     return path.join(' > ');
@@ -176,6 +221,7 @@ class DetailActivity : AppCompatActivity() {
             target ?: return@observe
             supportActionBar?.title = target.title
             binding.tvUrl.text = target.url
+            currentTargetUrl = target.url
             binding.tvInterval.text =
                 "${target.intervalMinutes}分ごとに確認　読込待機: ${target.waitSeconds}秒"
         }
@@ -201,8 +247,14 @@ class DetailActivity : AppCompatActivity() {
         if (path != null && File(path).exists()) {
             binding.webViewCard.visibility = View.VISIBLE
             val html = SnapshotStorage.readHtml(path) ?: ""
-            // ネットワーク不要・ローカルHTMLのみ表示
-            binding.webView.loadData(html, "text/html; charset=utf-8", "UTF-8")
+            // 元サイトURLをベースにすることでCSS・画像の相対パスを解決
+            binding.webView.loadDataWithBaseURL(
+                currentTargetUrl,
+                html,
+                "text/html",
+                "UTF-8",
+                null
+            )
             binding.tvViewingLabel.text =
                 if (showDiff && history.diffSnapshotPath != null) "差分表示" else "ページキャプチャ"
         } else {
