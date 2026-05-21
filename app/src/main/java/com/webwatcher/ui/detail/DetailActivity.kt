@@ -34,7 +34,6 @@ class DetailActivity : AppCompatActivity() {
     private lateinit var historyAdapter: HistoryAdapter
     private var targetId: Long = -1
     private var isSelectMode = false
-    private var currentUrl: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,12 +65,8 @@ class DetailActivity : AppCompatActivity() {
                 builtInZoomControls = true
                 displayZoomControls = false
                 cacheMode = WebSettings.LOAD_NO_CACHE
-                allowFileAccess = true
-                allowContentAccess = true
-                @Suppress("DEPRECATION")
-                allowFileAccessFromFileURLs = true
-                @Suppress("DEPRECATION")
-                allowUniversalAccessFromFileURLs = true
+                // ネットワークアクセスをブロック（ローカルHTMLのみ表示）
+                blockNetworkLoads = true
             }
 
             addJavascriptInterface(object : Any() {
@@ -181,7 +176,6 @@ class DetailActivity : AppCompatActivity() {
             target ?: return@observe
             supportActionBar?.title = target.title
             binding.tvUrl.text = target.url
-            currentUrl = target.url
             binding.tvInterval.text =
                 "${target.intervalMinutes}分ごとに確認　読込待機: ${target.waitSeconds}秒"
         }
@@ -206,15 +200,9 @@ class DetailActivity : AppCompatActivity() {
 
         if (path != null && File(path).exists()) {
             binding.webViewCard.visibility = View.VISIBLE
-            // ベースURLを元サイトのURLに設定することで相対パスが解決される
             val html = SnapshotStorage.readHtml(path) ?: ""
-            binding.webView.loadDataWithBaseURL(
-                currentUrl,   // ベースURL（元サイト）
-                html,
-                "text/html",
-                "UTF-8",
-                null
-            )
+            // ネットワーク不要・ローカルHTMLのみ表示
+            binding.webView.loadData(html, "text/html; charset=utf-8", "UTF-8")
             binding.tvViewingLabel.text =
                 if (showDiff && history.diffSnapshotPath != null) "差分表示" else "ページキャプチャ"
         } else {
